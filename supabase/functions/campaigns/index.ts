@@ -78,10 +78,41 @@ Deno.serve(async (req) => {
 
             if (updateError) throw updateError;
 
-            // In a full serverless setup, you'd typically:
-            // 1. Queue the email sending job
-            // 2. Use a separate cron job or scheduled function to process emails
-            // For now, we'll just update the status
+            // Start the campaign scheduler
+            const campaignId = pathParts[pathParts.length - 2];
+            try {
+                const schedulerResponse = await fetch(
+                    `${Deno.env
+                        .get("SUPABASE_URL")
+                        ?.replace(
+                            "/rest/v1",
+                            ""
+                        )}/functions/v1/campaign-scheduler`,
+                    {
+                        method: "POST",
+                        headers: {
+                            "Content-Type": "application/json",
+                            Authorization: `Bearer ${Deno.env.get(
+                                "SUPABASE_SERVICE_ROLE_KEY"
+                            )}`,
+                        },
+                        body: JSON.stringify({ campaignId }),
+                    }
+                );
+
+                if (!schedulerResponse.ok) {
+                    throw new Error("Failed to start campaign scheduler");
+                }
+
+                const schedulerResult = await schedulerResponse.json();
+                console.log("Campaign scheduler started:", schedulerResult);
+            } catch (schedulerError) {
+                console.error(
+                    "Failed to start campaign scheduler:",
+                    schedulerError
+                );
+                // Don't fail the whole request, just log the error
+            }
 
             return new Response(
                 JSON.stringify({ success: true, message: "Campaign started" }),
