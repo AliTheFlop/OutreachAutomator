@@ -34,10 +34,24 @@ Deno.serve(async (req) => {
         );
 
         const url = new URL(req.url);
-        const pathParts = url.pathname.split("/");
-        const campaignId = pathParts[pathParts.length - 1]; // campaigns/{id} or campaigns/{id}/action
-        const action =
-            pathParts.length > 4 ? pathParts[pathParts.length - 1] : null; // action like 'start' or 'status'
+        const pathParts = url.pathname
+            .split("/")
+            .filter((part) => part.length > 0);
+
+        // Extract campaign ID and action from URL path
+        // Expected patterns: /functions/v1/campaigns/{id} or /functions/v1/campaigns/{id}/{action}
+        let campaignId = null;
+        let action = null;
+
+        const campaignsIndex = pathParts.findIndex(
+            (part) => part === "campaigns"
+        );
+        if (campaignsIndex !== -1 && pathParts.length > campaignsIndex + 1) {
+            campaignId = pathParts[campaignsIndex + 1];
+            if (pathParts.length > campaignsIndex + 2) {
+                action = pathParts[campaignsIndex + 2];
+            }
+        }
 
         if (req.method === "GET") {
             const { data, error } = await supabaseClient
@@ -74,12 +88,11 @@ Deno.serve(async (req) => {
             const { error: updateError } = await supabaseClient
                 .from("campaigns")
                 .update({ status: "sending" })
-                .eq("id", pathParts[pathParts.length - 2]); // campaigns/{id}/start
+                .eq("id", campaignId);
 
             if (updateError) throw updateError;
 
             // Start the campaign scheduler
-            const campaignId = pathParts[pathParts.length - 2];
             try {
                 const schedulerResponse = await fetch(
                     `${Deno.env
@@ -172,7 +185,7 @@ Deno.serve(async (req) => {
             const { error } = await supabaseClient
                 .from("campaigns")
                 .update({ status })
-                .eq("id", pathParts[pathParts.length - 2]); // campaigns/{id}/status
+                .eq("id", campaignId);
 
             if (error) throw error;
 
